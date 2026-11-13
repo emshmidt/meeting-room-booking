@@ -1,13 +1,14 @@
 package com.learning.booking.controller;
 
+import com.learning.booking.dto.CreateRoomRequest;
 import com.learning.booking.dto.PageResponse;
 import com.learning.booking.dto.RoomResponse;
+import com.learning.booking.exception.ForbiddenOperationException;
+import com.learning.booking.exception.InvalidRoomDataException;
 import com.learning.booking.service.RoomService;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 
@@ -44,6 +45,22 @@ public class RoomController {
 
         return roomService.getPage(minCapacity, page, size);
     }
+
+    @PostMapping
+    public ResponseEntity<RoomResponse> createRoom(
+            @RequestBody CreateRoomRequest roomRequest
+    ) {
+        try {
+            return ResponseEntity
+                    .status(HttpStatus.CREATED)
+                    .body(roomService.createRoom(roomRequest));
+        } catch (ForbiddenOperationException e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (InvalidRoomDataException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+        }
+    }
+
 
 
 }

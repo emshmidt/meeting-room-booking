@@ -1,0 +1,103 @@
+# Проверка GET/POST /api/v1/rooms.
+# Фактические результаты 12.11.2026: ../docs/room-creation-verification.md.
+# Предусловия и результаты ручной проверки приведены в отчёте.
+# Каждый POST с корректными данными от Vera добавляет комнату.
+@baseUrl = http://localhost:8080
+
+### 1. Контроль GET на исходном seed (любой demo-user)
+# Ожидается 200: Vega, Sirius; page=0, size=2, totalElements=3.
+# Для этого запроса HTTP-результат за 12 ноября отдельно не зафиксирован.
+GET {{baseUrl}}/api/v1/rooms?minCapacity=8&page=0&size=2
+Accept: application/json
+
+### 2. Создать комнату: запустить приложение с --app.demo-user=vera
+# На исходном seed 4 комнаты. Ожидается 201, новый UUID, name="Atlas",
+# capacity=6, hasProjector=false, description="".
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+Accept: application/json
+
+{
+  "name": "  Atlas  ",
+  "capacity": 6,
+  "hasProjector": false,
+  "description": ""
+}
+
+### 3. Проверить сохранение без перезапуска
+# После ровно одного успешного POST: 200, totalElements=5;
+# порядок Orion, Atlas, Vega, Sirius, Luna.
+# id Atlas должен совпадать с ответом предыдущего POST.
+GET {{baseUrl}}/api/v1/rooms
+Accept: application/json
+
+### 4. Имя из пробелов: Vera, тот же процесс
+# Ожидается 400 с пустым телом, запись не добавляется.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{
+  "name": "      ",
+  "capacity": 6,
+  "hasProjector": false,
+  "description": ""
+}
+
+### 5. Нулевая вместимость: Vera, тот же процесс
+# Ожидается 400 с пустым телом, запись не добавляется.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{
+  "name": "  Atlas  ",
+  "capacity": 0,
+  "hasProjector": false,
+  "description": ""
+}
+
+### 6. Пропущен hasProjector: Vera, тот же процесс
+# Ожидается 400 с пустым телом, запись не добавляется.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{
+  "name": "  Atlas  ",
+  "capacity": 6,
+  "description": ""
+}
+
+### 7. Явный null в hasProjector: Vera, тот же процесс
+# Ожидается 400 с пустым телом, запись не добавляется.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{
+  "name": "  Atlas  ",
+  "capacity": 6,
+  "hasProjector": null,
+  "description": ""
+}
+
+### 8. Проверить состояние после четырёх отказов
+# Тот же процесс Vera: 200, totalElements=5; та же Atlas с тем же UUID.
+GET {{baseUrl}}/api/v1/rooms
+Accept: application/json
+
+### 9. Запрет для USER: остановить Vera и запустить --app.demo-user=anna
+# Перезапуск сбрасывает память: исходных комнат снова 4.
+# Тело корректное, но роль USER: ожидается 403 с пустым телом.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{
+  "name": "  Atlas  ",
+  "capacity": 6,
+  "hasProjector": false,
+  "description": ""
+}
+
+### 10. Проверить состояние после запрета для Anna
+# Ожидается 200, totalElements=4: Orion, Vega, Sirius, Luna.
+# Atlas отсутствует после сброса памяти; запрещённый POST ничего не добавил.
+GET {{baseUrl}}/api/v1/rooms
+Accept: application/json

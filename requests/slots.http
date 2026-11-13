@@ -1,0 +1,114 @@
+# Проверка создания и поиска слотов комнат.
+# Результаты: ../docs/slot-verification.md.
+# Запросы выполняются вручную; пользователь задаётся конфигурацией сервера.
+# Для полного воспроизведения: актуальная сборка, новый процесс --app.demo-user=vera.
+# Исходное наполнение: Orion — слоты 09:00, 10:00, 11:00; Luna — без слотов.
+@baseUrl = http://localhost:8080
+@orionRoomId = 00000000-0000-0000-0000-000000000001
+@lunaRoomId = 00000000-0000-0000-0000-000000000004
+@unknownRoomId = 00000000-0000-0000-0000-000100000001
+
+### Создание слота Luna, ADMIN
+# Зафиксировано: 201, время UTC с Z, available=true, серверный UUID.
+# Каждый успешный повтор с новым временем добавляет запись.
+POST {{baseUrl}}/api/v1/rooms/{{lunaRoomId}}/slots
+Content-Type: application/json
+
+{
+  "startsAt": "2030-01-14T12:00:00Z",
+  "endsAt": "2030-01-14T13:00:00Z"
+}
+
+### Дубликат того же момента с другим смещением, тот же процесс
+# Зафиксировано: 409, пустое тело.
+POST {{baseUrl}}/api/v1/rooms/{{lunaRoomId}}/slots
+Content-Type: application/json
+
+{
+  "startsAt": "2030-01-14T15:00:00+03:00",
+  "endsAt": "2030-01-14T16:00:00+03:00"
+}
+
+### Все слоты Orion в [09:00Z, 11:00Z)
+# Зафиксировано: 200; 09:00 available=false, 10:00 available=true;
+# page=0, size=20, totalElements=2. Начало 11:00 исключено.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T09:00:00Z&to=2030-01-14T11:00:00Z&availableOnly=false&page=0&size=20
+Accept: application/json
+
+### Только доступные слоты Orion
+# Зафиксировано: 200; только 10:00, totalElements=1.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T09:00:00Z&to=2030-01-14T11:00:00Z&availableOnly=true&page=0&size=20
+Accept: application/json
+
+### Вторая страница по одному элементу
+# Зафиксировано: 200; слот 10:00; page=1, size=1, totalElements=2.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T09:00:00Z&to=2030-01-14T11:00:00Z&availableOnly=false&page=1&size=1
+Accept: application/json
+
+### Равные границы периода
+# Зафиксировано: 400, пустое тело.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T11:00:00Z&to=2030-01-14T11:00:00Z
+
+### Длительность 90 минут, ADMIN
+# Зафиксировано: 400, пустое тело. Проверка длительности предшествует дубликату.
+POST {{baseUrl}}/api/v1/rooms/{{lunaRoomId}}/slots
+Content-Type: application/json
+
+{
+  "startsAt": "2030-01-14T12:00:00Z",
+  "endsAt": "2030-01-14T13:30:00Z"
+}
+
+### Начало в половину часа UTC, ADMIN
+# Зафиксировано: 400, пустое тело.
+POST {{baseUrl}}/api/v1/rooms/{{lunaRoomId}}/slots
+Content-Type: application/json
+
+{
+  "startsAt": "2030-01-14T12:30:00Z",
+  "endsAt": "2030-01-14T13:30:00Z"
+}
+
+### Обратный период для существующей комнаты
+# Зафиксировано: 400, пустое тело.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T12:00:00Z&to=2030-01-14T11:00:00Z&availableOnly=true&page=0&size=20
+
+### Неизвестная комната и одновременно неверный период
+# Зафиксировано: 404, пустое тело.
+# Существование комнаты проверяется раньше from < to.
+# Этот запрос проверяет сочетание причин, а не изолированный случай отсутствия.
+GET {{baseUrl}}/api/v1/rooms/{{unknownRoomId}}/slots?from=2030-01-14T12:00:00Z&to=2030-01-14T11:00:00Z&availableOnly=true&page=0&size=20
+
+### Дубликат исходного слота Orion, ADMIN
+# Зафиксировано: 409, пустое тело.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{
+  "startsAt": "2030-01-14T09:00:00Z",
+  "endsAt": "2030-01-14T10:00:00Z"
+}
+
+### Состояние Orion после отказа повторного создания
+# Зафиксировано: 200; один исходный слот 09:00 с прежним UUID;
+# totalElements=1, available=false. Дополнительной записи нет.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T09:00:00Z&to=2030-01-14T10:00:00Z
+Accept: application/json
+
+### Запрет создания для USER
+# Остановить Vera и запустить приложение с --app.demo-user=anna.
+# Перезапуск восстанавливает исходное наполнение; Luna снова без слотов.
+# Зафиксировано: 403, пустое тело.
+POST {{baseUrl}}/api/v1/rooms/{{lunaRoomId}}/slots
+Content-Type: application/json
+
+{
+  "startsAt": "2030-01-14T12:00:00Z",
+  "endsAt": "2030-01-14T13:00:00Z"
+}
+
+### Дополнительная проверка состояния после запрещённого POST
+# В том же процессе Anna: ожидается 200, items=[], totalElements=0.
+# Отдельный HTTP-результат не зафиксирован.
+GET {{baseUrl}}/api/v1/rooms/{{lunaRoomId}}/slots?from=2030-01-14T12:00:00Z&to=2030-01-14T14:00:00Z
+Accept: application/json

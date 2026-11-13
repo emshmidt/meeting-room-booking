@@ -1,6 +1,9 @@
 package com.learning.booking.service;
 
+import com.learning.booking.config.CurrentUserProvider;
+import com.learning.booking.domain.Role;
 import com.learning.booking.domain.Room;
+import com.learning.booking.domain.User;
 import com.learning.booking.repository.InMemoryRoomRepository;
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +45,10 @@ public class RoomServiceTest {
                 return List.of(luna, sirius, orion, vega);
             }
         };
-        RoomService service = new RoomService(repository);
+        User testUser = new User(UUID.randomUUID(), "Veronica", "veronica@test.com", Role.ADMIN);
+        CurrentUserProvider provider = () -> testUser;
+
+        RoomService service = new RoomService(repository, provider);
 
         var firstPage = service.getPage(8, 0, 2);
         assertEquals(3L, firstPage.totalElements());

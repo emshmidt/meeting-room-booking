@@ -1,0 +1,111 @@
+# Проверка создания и чтения брони.
+# Результаты создания: ../docs/booking-creation-verification.md.
+# Результаты чтения: ../docs/booking-read-verification.md.
+# Запустить актуальный JAR с --app.demo-user=anna на исходном наборе данных.
+# Проверку POST и GET по Location выполнять в одном процессе.
+# Для проверок прав менять demo-user согласно комментариям к запросам.
+@baseUrl = http://localhost:8080
+@orionRoomId = 00000000-0000-0000-0000-000000000001
+@bookableSlotId = 00000000-0000-0000-0000-000000000002
+@unknownSlotId = ffffffff-ffff-ffff-ffff-ffffffffffff
+@from = 2030-01-14T10:00:00Z
+@to = 2030-01-14T11:00:00Z
+@createdBookingId = REPLACE_WITH_UUID_FROM_LOCATION
+@unknownBookingId = ffffffff-ffff-ffff-ffff-ffffffffffff
+@annaActiveBookingId = 00000000-0000-0000-0000-000000000001
+@annaCancelledBookingId = 00000000-0000-0000-0000-000000000002
+
+### Доступность до создания брони
+# Ожидается 200, один слот Orion 10:00 с available=true, totalElements=1.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from={{from}}&to={{to}}
+Accept: application/json
+
+### Создание брони от Anna
+# Ожидается 201, восемь полей, ACTIVE и Location с UUID из тела.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"{{bookableSlotId}}"}
+
+### Чтение созданной брони по Location
+# Подставить UUID из Location предыдущего POST в createdBookingId.
+# Выполнить в том же процессе. Зафиксировано: 200, все восемь полей совпадают с POST.
+GET {{baseUrl}}/api/v1/bookings/{{createdBookingId}}
+Accept: application/json
+
+### Повторное создание для того же слота
+# Ожидается 409. Первая ACTIVE-бронь сохраняется.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"{{bookableSlotId}}"}
+
+### Доступность после создания брони
+# Ожидается 200, тот же слот с available=false, totalElements=1.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from={{from}}&to={{to}}
+Accept: application/json
+
+### Только доступные слоты после создания брони
+# Ожидается 200, items=[], totalElements=0.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from={{from}}&to={{to}}&availableOnly=true
+Accept: application/json
+
+### Обязательный slotId пропущен
+# Ожидается 400.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{}
+
+### Некорректный формат slotId
+# Ожидается 400 на преобразовании запроса.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"abc"}
+
+### Корректный UUID отсутствующего слота
+# Ожидается 404.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"{{unknownSlotId}}"}
+
+### Некорректный UUID брони
+# Зафиксировано: 400 на этапе преобразования параметра пути.
+GET {{baseUrl}}/api/v1/bookings/abc
+Accept: application/json
+
+### Корректный UUID отсутствующей брони
+# Зафиксировано: 404, пустое тело.
+GET {{baseUrl}}/api/v1/bookings/{{unknownBookingId}}
+Accept: application/json
+
+### Чтение исходной брони от владельца
+# Запустить приложение с --app.demo-user=anna.
+# Зафиксировано: 200, ACTIVE, userId Anna.
+GET {{baseUrl}}/api/v1/bookings/{{annaActiveBookingId}}
+Accept: application/json
+
+### Чтение той же брони от другого USER
+# Остановить предыдущий процесс и запустить --app.demo-user=boris.
+# Зафиксировано: 403, пустое тело.
+GET {{baseUrl}}/api/v1/bookings/{{annaActiveBookingId}}
+Accept: application/json
+
+### Чтение той же брони от ADMIN
+# Остановить предыдущий процесс и запустить --app.demo-user=vera.
+# Зафиксировано: 200, тело совпадает с ответом Anna, userId Anna.
+GET {{baseUrl}}/api/v1/bookings/{{annaActiveBookingId}}
+Accept: application/json
+
+### Чтение исходной отменённой брони от Anna
+# Остановить предыдущий процесс и запустить --app.demo-user=anna.
+# Зафиксировано: 200, CANCELLED, userId Anna.
+GET {{baseUrl}}/api/v1/bookings/{{annaCancelledBookingId}}
+Accept: application/json
