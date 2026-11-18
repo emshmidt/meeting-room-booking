@@ -101,3 +101,167 @@ Content-Type: application/json
 # Atlas отсутствует после сброса памяти; запрещённый POST ничего не добавил.
 GET {{baseUrl}}/api/v1/rooms
 Accept: application/json
+
+# Проверка валидации тела запроса от 17.11.2026. Результаты в ../docs/request-validation-verification.md.
+
+### Нулевая вместимость в отладчике
+# Vera. Получен 400 со стандартным JSON Spring. Точка останова в POST-методе не сработала.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"  Atlas  ","capacity":0,"hasProjector":false}
+
+### Корректный false и нормализация имени
+# Vera, тот же запуск. Точка останова сработала. Получен 201: Atlas, 8, false, description=null.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"  Atlas  ","capacity":8,"hasProjector":false}
+
+### Контроль списка комнат до и после отказов
+# Перезапустить приложение от Vera после успешного POST. Выполнить этот GET до и после четырёх POST ниже.
+# Оба раза получен 200 и те же четыре исходные комнаты, totalElements=4.
+GET {{baseUrl}}/api/v1/rooms
+
+### Пропущен hasProjector
+# Получен 400 на валидации DTO.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":8}
+
+### Явный null в hasProjector
+# Получен 400 на валидации DTO.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":8,"hasProjector":null}
+
+### Пробельное имя
+# Получен 400 на валидации DTO.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"   ","capacity":8,"hasProjector":false}
+
+### Нулевая вместимость в новом запуске Vera
+# Получен 400 на валидации DTO. Повторить контрольный GET комнат.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":0,"hasProjector":false}
+
+# Проверка параметров списка комнат от 17.11.2026. Результаты в ../docs/url-parameters-verification.md.
+# Группа выполняется на исходных данных от Anna.
+
+### Значения пагинации по умолчанию для комнат
+# Получен 200: page=0, size=20, totalElements=4.
+GET {{baseUrl}}/api/v1/rooms
+
+### Пустой page для комнат
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/rooms?page=
+
+### Пустой size для комнат
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/rooms?size=
+
+### Page выходит за пределы int
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/rooms?page=2147483648
+
+### Минимальная вместимость 8
+# Получен 200: Vega, Sirius, Luna, totalElements=3.
+GET {{baseUrl}}/api/v1/rooms?minCapacity=8
+
+### Пустой minCapacity
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/rooms?minCapacity=
+
+### Нулевой minCapacity
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/rooms?minCapacity=0
+
+# Десериализация JSON при создании комнат. Запуск от Vera.
+# Результаты в ../docs/json-deserialization-verification.md.
+
+### Неизвестное поле id при создании комнаты
+# Получен 400 при десериализации.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":4,"hasProjector":false,"id":"11111111-1111-1111-1111-111111111111"}
+
+### Дробное число в capacity
+# Получен 400.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":4.5,"hasProjector":false}
+
+### Строка с цифрой в capacity
+# Получен 400.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":"4","hasProjector":false}
+
+### Пустая строка в capacity
+# Получен 400.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":"","hasProjector":false}
+
+### Строка в hasProjector
+# Получен 400.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":4,"hasProjector":"false"}
+
+### Число в hasProjector
+# Получен 400.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":4,"hasProjector":0}
+
+### Число в name
+# Получен 400.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":123,"capacity":4,"hasProjector":false}
+
+### Логическое значение в description
+# Получен 400.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":4,"hasProjector":false,"description":true}
+
+### Корректный false и пропущенное описание
+# Получен 201, hasProjector=false и description=null.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":4,"hasProjector":false}
+
+### Корректный false и явный null в описании
+# Получен 201, hasProjector=false и description=null.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":4,"hasProjector":false,"description":null}
+
+### Чтение комнат после создания Atlas с description=null
+# Получен 200. В свежем процессе после одного POST totalElements=5. У Orion и Atlas description=null, у Vega description="".
+GET {{baseUrl}}/api/v1/rooms
+
+### Пустая строка в необязательном описании
+# Получен 201, description="".
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":4,"hasProjector":false,"description":""}

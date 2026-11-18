@@ -4,8 +4,8 @@ import com.learning.booking.dto.CreateRoomRequest;
 import com.learning.booking.dto.PageResponse;
 import com.learning.booking.dto.RoomResponse;
 import com.learning.booking.exception.ForbiddenOperationException;
-import com.learning.booking.exception.InvalidRoomDataException;
 import com.learning.booking.service.RoomService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,28 +27,32 @@ public class RoomController {
 
     @GetMapping
     public PageResponse<RoomResponse> getRooms(
-            @RequestParam(name = "minCapacity", required = false) Integer minCapacity,
-            @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size
+            @RequestParam(name = "minCapacity", required = false) String minCapacityString,
+            @RequestParam(name = "page", required = false) String pageString,
+            @RequestParam(name = "size", required = false) String sizeString
     ) {
+        Integer minCapacity = null;
+        if (minCapacityString != null) {
+            try {
+                minCapacity = Integer.parseInt(minCapacityString);
+            } catch (NumberFormatException e) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "minCapacity must be an integer", e);
+            }
 
-        if (minCapacity != null && minCapacity <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Min capacity must be positive");
-        }
-        if (page < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Page must be not negative");
-        }
-        if (size < 1 || size > 100) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Size must be from 1 to 100");
+            if (minCapacity <= 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "minCapacity must be positive");
+            }
         }
 
-
-        return roomService.getPage(minCapacity, page, size);
+        PageParameters pagination = PageParameters.parse(pageString, sizeString);
+        return roomService.getPage(minCapacity, pagination.page(), pagination.size());
     }
 
     @PostMapping
     public ResponseEntity<RoomResponse> createRoom(
-            @RequestBody CreateRoomRequest roomRequest
+            @Valid @RequestBody CreateRoomRequest roomRequest
     ) {
         try {
             return ResponseEntity
@@ -56,8 +60,6 @@ public class RoomController {
                     .body(roomService.createRoom(roomRequest));
         } catch (ForbiddenOperationException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        } catch (InvalidRoomDataException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }
 

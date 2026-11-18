@@ -1,4 +1,4 @@
-# Проверка создания и чтения брони.
+# Проверка создания, чтения, истории и отмены брони.
 # Результаты создания: ../docs/booking-creation-verification.md.
 # Результаты чтения: ../docs/booking-read-verification.md.
 # Запустить актуальный JAR с --app.demo-user=anna на исходном наборе данных.
@@ -109,3 +109,247 @@ Accept: application/json
 # Зафиксировано: 200, CANCELLED, userId Anna.
 GET {{baseUrl}}/api/v1/bookings/{{annaCancelledBookingId}}
 Accept: application/json
+
+# Проверка истории и отмены бронирований от 17.11.2026.
+# Результаты в ../docs/booking-history-cancellation-verification.md.
+# Каждый блок смены demo-user начинается с нового запуска и исходного seed.
+# Контракт, исходники и сохранённый HTTP-прогон используют CANCELLED.
+@cancelledBookingId = REPLACE_WITH_UUID_FROM_FIRST_POST
+@rebookedBookingId = REPLACE_WITH_UUID_FROM_SECOND_POST
+
+### История Anna на свежем seed
+# Запуск --app.demo-user=anna. Получено 200, UUID ...003, ...002, ...001,
+# page=0, size=20, totalElements=3.
+GET {{baseUrl}}/api/v1/bookings
+Accept: application/json
+
+### Отменённая история Anna
+# Получено 200, UUID ...003 и ...002, totalElements=2.
+GET {{baseUrl}}/api/v1/bookings?status=CANCELLED
+Accept: application/json
+
+### Вторая страница Anna
+# Получено 200, UUID ...001, page=1, size=2, totalElements=3.
+GET {{baseUrl}}/api/v1/bookings?page=1&size=2
+Accept: application/json
+
+### Страница за концом истории
+# Получено 200, items=[], page=2, size=2, totalElements=3.
+GET {{baseUrl}}/api/v1/bookings?page=2&size=2
+Accept: application/json
+
+### Собственная история ADMIN
+# Новый запуск --app.demo-user=vera. Получено 200, items=[], totalElements=0.
+GET {{baseUrl}}/api/v1/bookings
+Accept: application/json
+
+### Отрицательная страница
+# В запуске Vera получено 400, стандартное JSON-тело Spring Boot.
+GET {{baseUrl}}/api/v1/bookings?page=-1
+Accept: application/json
+
+### Нулевой размер страницы
+# Получено 400.
+GET {{baseUrl}}/api/v1/bookings?size=0
+Accept: application/json
+
+### Слишком большой размер страницы
+# Получено 400.
+GET {{baseUrl}}/api/v1/bookings?size=101
+Accept: application/json
+
+### Неизвестный статус
+# Получено 400.
+GET {{baseUrl}}/api/v1/bookings?status=PENDING
+Accept: application/json
+
+### Доступность перед цепочкой отмены
+# Новый запуск --app.demo-user=anna. Все следующие запросы цепочки в одном процессе.
+# Получено 200, один слот Orion 10:00Z, available=true, totalElements=1.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from={{from}}&to={{to}}&availableOnly=false
+Accept: application/json
+
+### Первая бронь
+# Получено 201. Фактический UUID 8563fd6e-4445-4c29-97dd-9742c1db61d5.
+# createdAt=2026-11-17T10:33:50.327031Z, статус ACTIVE.
+# При повторении подставить UUID из нового Location в cancelledBookingId.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"{{bookableSlotId}}"}
+
+### Отмена первой брони
+# Получено 204, пустое тело.
+DELETE {{baseUrl}}/api/v1/bookings/{{cancelledBookingId}}
+
+### Повтор отмены
+# Получено 204, пустое тело.
+DELETE {{baseUrl}}/api/v1/bookings/{{cancelledBookingId}}
+
+### Сохранённая отменённая запись
+# Получено 200, CANCELLED. Остальные семь полей совпали с первым POST.
+GET {{baseUrl}}/api/v1/bookings/{{cancelledBookingId}}
+Accept: application/json
+
+### Доступность после отмены
+# Получено 200, available=true, totalElements=1.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from={{from}}&to={{to}}&availableOnly=false
+Accept: application/json
+
+### Новая бронь того же слота
+# Получено 201. Фактический UUID eaf0d75b-8464-4649-8448-267659944c62.
+# createdAt=2026-11-17T10:38:06.272473Z, статус ACTIVE.
+# При повторении подставить новый UUID в rebookedBookingId.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"{{bookableSlotId}}"}
+
+### Чтение новой брони
+# Получено 200, все восемь полей совпали со вторым POST.
+GET {{baseUrl}}/api/v1/bookings/{{rebookedBookingId}}
+Accept: application/json
+
+### История после нового бронирования
+# Получено 200, totalElements=5.
+# Порядок: новая ACTIVE, первая CANCELLED, seed ...003, ...002, ...001.
+GET {{baseUrl}}/api/v1/bookings
+Accept: application/json
+
+### Отменённые после цепочки
+# Получено 200, totalElements=3. Первая созданная бронь, seed ...003, ...002.
+GET {{baseUrl}}/api/v1/bookings?status=CANCELLED
+Accept: application/json
+
+### Активные после цепочки
+# Получено 200, totalElements=2. Новая бронь и seed ...001.
+GET {{baseUrl}}/api/v1/bookings?status=ACTIVE
+Accept: application/json
+
+### Конфликт повторного POST
+# Получено 409, Content-Length: 0.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"{{bookableSlotId}}"}
+
+### История после конфликта
+# Получено 200, те же пять записей и тот же порядок.
+GET {{baseUrl}}/api/v1/bookings
+Accept: application/json
+
+### Чужой USER отменяет исходную бронь Anna
+# Новый запуск --app.demo-user=boris. Получено 403, Content-Length: 0.
+DELETE {{baseUrl}}/api/v1/bookings/{{annaActiveBookingId}}
+
+### ADMIN отменяет исходную бронь Anna
+# Новый запуск --app.demo-user=vera. Получено 204, пустое тело.
+DELETE {{baseUrl}}/api/v1/bookings/{{annaActiveBookingId}}
+
+### ADMIN читает результат отмены
+# В том же процессе Vera. Получено 200, CANCELLED, userId Anna,
+# createdAt=2026-10-01T09:01:00Z и исходный slotId сохранены.
+GET {{baseUrl}}/api/v1/bookings/{{annaActiveBookingId}}
+Accept: application/json
+
+### Отмена отсутствующей брони
+# В запуске Vera. Получено 404, Content-Length: 0.
+DELETE {{baseUrl}}/api/v1/bookings/{{unknownBookingId}}
+
+# Проверка валидации тела запроса от 17.11.2026. Результаты в ../docs/request-validation-verification.md.
+
+### Контроль истории Anna до и после отказов
+# Новый запуск --app.demo-user=anna. Выполнить GET до и после POST с {} и с slotId=null.
+# Для {} использовать запрос «Обязательный slotId пропущен» выше. Получен 400 на валидации DTO.
+# Оба GET дали 200 и те же исходные брони …003, …002, …001, totalElements=3.
+GET {{baseUrl}}/api/v1/bookings
+
+### Явный null в slotId
+# Anna, тот же запуск. Получен 400 на валидации DTO. Повторить контрольный GET истории.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+
+{"slotId":null}
+
+# Проверка параметров истории и UUID от 17.11.2026. Результаты в ../docs/url-parameters-verification.md.
+# Группа выполняется на исходных данных от Anna.
+
+### Непустая страница истории с явными параметрами
+# Получен 200: page=1, size=1, totalElements=3, одна запись с окончанием UUID 002.
+GET {{baseUrl}}/api/v1/bookings?page=1&size=1
+
+### Пустой size для истории
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/bookings?size=
+
+### Большая допустимая страница истории
+# Получен 200: page=2147483647, size=100, items=[], totalElements=3.
+GET {{baseUrl}}/api/v1/bookings?page=2147483647&size=100
+
+### Пустой статус в истории
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/bookings?status=
+
+### Статус в нижнем регистре
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/bookings?status=active
+
+### Фильтр истории по ACTIVE
+# Получен 200: одна активная бронь Anna, totalElements=1.
+GET {{baseUrl}}/api/v1/bookings?status=ACTIVE
+
+### Чтение брони по сокращённому UUID
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/bookings/1-1-1-1-1
+
+### Отмена брони по сокращённому UUID
+# Получен 400 со стандартным JSON Spring.
+DELETE {{baseUrl}}/api/v1/bookings/1-1-1-1-1
+
+# Десериализация JSON при создании бронирований. Запуск от Anna на исходных данных.
+# Результаты в ../docs/json-deserialization-verification.md.
+# Для неверного UUID "abc" и корректного неизвестного UUID использовать одноимённые запросы выше.
+# У "abc" фактически 400 с причиной MismatchedInputException. У неизвестного слота 404 с пустым телом.
+# Для контрольного 201 выполнить ранее сохранённый POST с {{bookableSlotId}} после проверок истории.
+
+### UUID слота в Base64
+# Получен 400 при десериализации.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+
+{"slotId":"AAAAAAAAAAAAAAAAAAAAAA=="}
+
+### UUID слота с пробелами по краям
+# Получен 400 при десериализации.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+
+{"slotId":" ffffffff-ffff-ffff-ffff-ffffffffffff "}
+
+### Укороченный UUID слота
+# Получен 400 при десериализации.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+
+{"slotId":"1-1-1-1-1"}
+
+### Пустая строка в slotId
+# Получен 400.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+
+{"slotId":""}
+
+### Оборванное тело JSON
+# Фактически 400. Причина внутри HttpMessageNotReadableException — UnexpectedEndOfInputException.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+
+{"slotId":
+
+### Контроль UTC в истории бронирований
+# Anna, исходные данные. Получен 200, totalElements=3. createdAt, startsAt и endsAt имеют суффикс Z.
+GET {{baseUrl}}/api/v1/bookings

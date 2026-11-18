@@ -149,13 +149,6 @@ public class SlotService {
             throw new RoomNotFoundException("Room was not found");
         }
 
-        if (slotRequest.startsAt() == null) {
-            throw new InvalidSlotDataException("Starts at must not be null");
-        }
-        if (slotRequest.endsAt() == null) {
-            throw new InvalidSlotDataException("Ends at must not be null");
-        }
-
         Instant startsAt = slotRequest.startsAt().toInstant();
         Instant endsAt = slotRequest.endsAt().toInstant();
 

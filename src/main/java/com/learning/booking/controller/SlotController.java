@@ -8,6 +8,7 @@ import com.learning.booking.exception.InvalidSlotDataException;
 import com.learning.booking.exception.RoomNotFoundException;
 import com.learning.booking.exception.SlotAlreadyExistsException;
 import com.learning.booking.service.SlotService;
+import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,9 +33,11 @@ public class SlotController {
 
     @PostMapping
     public ResponseEntity<SlotResponse> createSlot(
-            @PathVariable UUID roomId,
-            @RequestBody CreateSlotRequest slotRequest
-            ) {
+            @PathVariable("roomId") String roomIdString,
+            @Valid @RequestBody CreateSlotRequest slotRequest
+    ) {
+        UUID roomId = PathParameters.parseUuid(roomIdString, "roomId");
+
         try {
             return ResponseEntity
                     .status(HttpStatus.CREATED)
@@ -52,7 +55,7 @@ public class SlotController {
 
     @GetMapping
     public ResponseEntity<PageResponse<SlotResponse>> getSlots (
-            @PathVariable UUID roomId,
+            @PathVariable("roomId") String roomIdString,
 
             @RequestParam(name = "from")
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -61,22 +64,30 @@ public class SlotController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
             OffsetDateTime to,
 
-            @RequestParam(name = "availableOnly", defaultValue = "false", required = false) boolean availableOnly,
-            @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size
-
+            @RequestParam(name = "availableOnly", required = false) String availableOnlyString,
+            @RequestParam(name = "page", required = false) String pageString,
+            @RequestParam(name = "size", required = false) String sizeString
     ) {
-        if (page < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Page must be not negative");
-        }
-        if (size < 1 || size > 100) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Size must be from 1 to 100");
-        }
+        UUID roomId = PathParameters.parseUuid(roomIdString, "roomId");
+
+        boolean availableOnly = switch (availableOnlyString) {
+            case null -> false;
+            case "false" -> false;
+            case "true" -> true;
+            default -> throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "availableOnly must be true or false");
+        };
 
         try {
+            PageParameters pagination = PageParameters.parse(pageString, sizeString);
+
             return ResponseEntity
                     .status(HttpStatus.OK)
-                    .body(slotService.getPage(roomId, from, to, availableOnly, page, size));
+                    .body(slotService.getPage(
+                            roomId, from, to, availableOnly,
+                            pagination.page(), pagination.size()
+
+                    ));
         } catch (RoomNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         } catch (InvalidSlotDataException e) {

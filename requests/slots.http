@@ -112,3 +112,136 @@ Content-Type: application/json
 # Отдельный HTTP-результат не зафиксирован.
 GET {{baseUrl}}/api/v1/rooms/{{lunaRoomId}}/slots?from=2030-01-14T12:00:00Z&to=2030-01-14T14:00:00Z
 Accept: application/json
+
+# Проверка валидации тела запроса от 17.11.2026. Результаты в ../docs/request-validation-verification.md.
+
+### Контроль слотов Orion до и после отказов
+# Vera. Выполнить этот GET до и после двух POST ниже.
+# Оба раза получен 200: items=[], page=0, size=20, totalElements=0.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T15:00:00Z&to=2030-01-14T16:00:00Z
+
+### Пропущен endsAt
+# @NotNull в CreateSlotRequest отклоняет DTO до вызова контроллера. Получен 400 со стандартным JSON Spring.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{"startsAt":"2030-01-14T15:00:00Z"}
+
+### Длительность 59 минут
+# Обе даты проходят @NotNull. SlotService отклоняет длительность. Получен 400 с пустым телом.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{"startsAt":"2030-01-14T15:00:00Z","endsAt":"2030-01-14T15:59:00Z"}
+
+# Проверка параметров слотов и UUID от 17.11.2026. Результаты в ../docs/url-parameters-verification.md.
+# GET выполнялись от Anna на исходных данных, POST с UUID комнаты выполнялся от Vera.
+
+### Пустой size для слотов
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T09:00:00Z&to=2030-01-14T11:00:00Z&size=
+
+### Пустой availableOnly
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T09:00:00Z&to=2030-01-14T11:00:00Z&availableOnly=
+
+### availableOnly со значением yes
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T09:00:00Z&to=2030-01-14T11:00:00Z&availableOnly=yes
+
+### Отсутствует нижняя граница периода
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?to=2030-01-14T11:00:00Z
+
+### Нижняя граница без смещения
+# Получен 400 со стандартным JSON Spring.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T09:00:00&to=2030-01-14T11:00:00Z
+
+### Один момент в двух смещениях
+# Получен 400 с пустым телом. Границы 09:00Z и 12:00+03:00 равны.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T09:00:00Z&to=2030-01-14T12:00:00%2B03:00
+
+### Период Orion со смещением +03:00
+# Получен 200: начала 09:00Z и 10:00Z, totalElements=2. 11:00Z исключён.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T12:00:00%2B03:00&to=2030-01-14T14:00:00%2B03:00
+
+### Список слотов по сокращённому UUID комнаты
+# Получен 400 со стандартным JSON Spring при корректном периоде.
+GET {{baseUrl}}/api/v1/rooms/1-1-1-1-1/slots?from=2030-01-14T09:00:00Z&to=2030-01-14T11:00:00Z
+
+### Создание слота по сокращённому UUID комнаты
+# От Vera с корректным телом получен 400 со стандартным JSON Spring.
+POST {{baseUrl}}/api/v1/rooms/1-1-1-1-1/slots
+Content-Type: application/json
+
+{"startsAt":"2030-01-14T15:00:00Z","endsAt":"2030-01-14T16:00:00Z"}
+
+### Создание слота в неизвестной комнате
+# От Vera с корректным телом получен 404 с пустым телом.
+POST {{baseUrl}}/api/v1/rooms/ffffffff-ffff-ffff-ffff-ffffffffffff/slots
+Content-Type: application/json
+
+{"startsAt":"2030-01-14T15:00:00Z","endsAt":"2030-01-14T16:00:00Z"}
+
+# Десериализация JSON при создании слотов. Запуск от Vera.
+# Результаты в ../docs/json-deserialization-verification.md.
+
+### Числовая метка времени в startsAt
+# Получен 400 при десериализации.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{"startsAt":1894633200,"endsAt":"2030-01-14T16:00:00Z"}
+
+### Массив в startsAt
+# Получен 400 при десериализации.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{"startsAt":["2030-01-14T15:00:00Z"],"endsAt":"2030-01-14T16:00:00Z"}
+
+### Строка без смещения в startsAt
+# Получен 400 при десериализации.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{"startsAt":"2030-01-14T15:00:00","endsAt":"2030-01-14T16:00:00Z"}
+
+### Числовая метка времени в endsAt
+# Получен 400 при десериализации.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{"startsAt":"2030-01-14T15:00:00Z","endsAt":1894636800}
+
+### Массив в endsAt
+# Получен 400 при десериализации.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{"startsAt":"2030-01-14T15:00:00Z","endsAt":["2030-01-14T16:00:00Z"]}
+
+### Строка без смещения в endsAt
+# Получен 400 при десериализации.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{"startsAt":"2030-01-14T15:00:00Z","endsAt":"2030-01-14T16:00:00"}
+
+### Создание слота на 15:00Z со смещением +03:00
+# Получен 201 на свободном периоде. В ответе startsAt=15:00Z, endsAt=16:00Z.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{"startsAt":"2030-01-14T18:00:00+03:00","endsAt":"2030-01-14T19:00:00+03:00"}
+
+### Создание слота со смещением +03:00
+# Получен 201. В ответе startsAt=17:00Z, endsAt=18:00Z.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{"startsAt":"2030-01-14T20:00:00+03:00","endsAt":"2030-01-14T21:00:00+03:00"}
+
+### Чтение созданного слота в UTC
+# Тот же процесс Vera. Получен 200, totalElements=1. UUID и время совпадают с ответом POST.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T17:00:00Z&to=2030-01-14T18:00:00Z

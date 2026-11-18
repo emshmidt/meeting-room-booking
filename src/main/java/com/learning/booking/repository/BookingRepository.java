@@ -2,6 +2,8 @@ package com.learning.booking.repository;
 
 
 import com.learning.booking.domain.Booking;
+import com.learning.booking.domain.BookingStatus;
+import com.learning.booking.exception.BookingNotFoundException;
 
 import java.util.List;
 import java.util.Optional;
@@ -44,4 +46,25 @@ public interface BookingRepository {
      */
 
     List<Booking> findAll();
+
+    /**
+     * Обновляет статус существующего бронирования.
+     *
+     * <p>Бронирование определяется по {@code bookingId}.
+     * Поля {@code id}, {@code userId}, {@code slotId} и {@code createdAt}
+     * берутся из сохранённой записи. Количество записей сохраняется.
+     *
+     * <p>После успешного обновления новый статус доступен через
+     * {@code findById()} и {@code findAll()}.
+     * При отклонении обновления состояние хранилища сохраняется.
+     *
+     * @param bookingId идентификатор бронирования, который используется для поиска
+     * @param status новый статус бронирования
+     * @throws IllegalArgumentException если  {@code bookingId}
+     *         или {@code status} равны {@code null},
+     * @throws BookingNotFoundException если бронирование с указанным идентификатором отсутствует
+     */
+
+    void updateStatus(UUID bookingId, BookingStatus status);
+
 }

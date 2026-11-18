@@ -8,7 +8,6 @@ import com.learning.booking.dto.CreateRoomRequest;
 import com.learning.booking.dto.PageResponse;
 import com.learning.booking.dto.RoomResponse;
 import com.learning.booking.exception.ForbiddenOperationException;
-import com.learning.booking.exception.InvalidRoomDataException;
 import com.learning.booking.repository.RoomRepository;
 import org.springframework.stereotype.Service;
 
@@ -86,20 +85,7 @@ public class RoomService {
             throw new ForbiddenOperationException("Only ADMIN can create a new room");
         }
 
-        if (roomRequest.name() == null) {
-            throw new InvalidRoomDataException("Name must not be null");
-        }
-        if (roomRequest.capacity() == null || roomRequest.capacity() <= 0) {
-            throw new InvalidRoomDataException("Capacity must be positive");
-        }
-        if (roomRequest.hasProjector() == null){
-            throw new InvalidRoomDataException("Has projector must not be null");
-        }
-
         String name = roomRequest.name().strip();
-        if (name.isEmpty()) {
-            throw new InvalidRoomDataException("Name must not be blank");
-        }
 
         Room newRoom = new Room(
                 UUID.randomUUID(), name,
