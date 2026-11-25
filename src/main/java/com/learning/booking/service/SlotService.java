@@ -74,13 +74,13 @@ public class SlotService {
         }
 
         if (from == null) {
-            throw new InvalidSlotDataException("Starting time should not be null");
+            throw new InvalidSlotDataException("from", "Начало периода обязательно");
         }
         if (to == null) {
-            throw new InvalidSlotDataException("Ending time should not be null");
+            throw new InvalidSlotDataException("to", "Конец периода обязателен");
         }
         if (!from.isBefore(to)) {
-            throw new InvalidSlotDataException("Ending time should be after starting time");
+            throw new InvalidSlotDataException("to", "Конец периода должен быть позже начала");
         }
 
         Instant now = clock.instant();
@@ -153,12 +153,12 @@ public class SlotService {
         Instant endsAt = slotRequest.endsAt().toInstant();
 
         if (!startsAt.equals(startsAt.truncatedTo(ChronoUnit.HOURS))) {
-            throw new InvalidSlotDataException("Slot should start at the exact hour");
+            throw new InvalidSlotDataException("startsAt", "Слот должен начинаться в целый час UTC");
         }
 
         if (!Duration.between(startsAt, endsAt)
                 .equals(Duration.ofMinutes(60))) {
-            throw new InvalidSlotDataException("Slot should last a whole hour");
+            throw new InvalidSlotDataException("endsAt", "Слот должен длиться 60 минут");
         }
 
 

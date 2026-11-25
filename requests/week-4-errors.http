@@ -1,0 +1,254 @@
+# Неделя 4, день 4, модуль 1. Предметные ошибки и статусы MVC.
+# Результаты: ../docs/error-handling-verification.md.
+# Начать со свежего запуска JAR с --app.demo-user=anna.
+# Выполнять создание, повторный POST и DELETE в одном процессе.
+@baseUrl = http://localhost:8080
+@bookableSlotId = 00000000-0000-0000-0000-000000000002
+@unknownId = ffffffff-ffff-ffff-ffff-ffffffffffff
+@createdBookingId = REPLACE_WITH_UUID_FROM_LOCATION
+@orionRoomId = 00000000-0000-0000-0000-000000000001
+@pastSlotId = REPLACE_WITH_UUID_FROM_CREATED_SLOT
+
+### Создание новой брони
+# 201, ACTIVE, Location заканчивается на id из тела.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"{{bookableSlotId}}"}
+
+### Повторный POST на тот же слот
+# 409 SLOT_ALREADY_BOOKED, fieldErrors=[].
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"{{bookableSlotId}}"}
+
+### Чтение первой брони после конфликта
+# Подставить id из Location. 200, те же данные, что вернул первый POST.
+GET {{baseUrl}}/api/v1/bookings/{{createdBookingId}}
+Accept: application/json
+
+### Бронь отсутствующего слота
+# 404 SLOT_NOT_FOUND, fieldErrors=[].
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"{{unknownId}}"}
+
+### Чтение отсутствующей брони
+# 404 BOOKING_NOT_FOUND, fieldErrors=[].
+GET {{baseUrl}}/api/v1/bookings/{{unknownId}}
+Accept: application/json
+
+### Слоты отсутствующей комнаты
+# 404 ROOM_NOT_FOUND, fieldErrors=[].
+GET {{baseUrl}}/api/v1/rooms/{{unknownId}}/slots?from=2030-01-14T09:00:00Z&to=2030-01-14T11:00:00Z
+Accept: application/json
+
+### Создание комнаты от Anna с ролью USER
+# 403 FORBIDDEN, fieldErrors=[].
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+Accept: application/json
+
+{"name":"Atlas","capacity":4,"hasProjector":false}
+
+### Метод, которого нет у коллекции бронирований
+# 405, Allow содержит GET и POST, тело application/problem+json.
+PUT {{baseUrl}}/api/v1/bookings
+
+### Неподдерживаемый тип тела
+# 415, Accept включает application/json, тело application/problem+json.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: text/plain
+
+test
+
+### Отмена успешно созданной брони
+# Подставить id из Location и выполнить в том же процессе. 204, пустое тело.
+DELETE {{baseUrl}}/api/v1/bookings/{{createdBookingId}}
+
+### Пустой параметр size
+# 400 VALIDATION_ERROR, поле size. Повторная проверка в модуле 2.
+GET {{baseUrl}}/api/v1/bookings?size=
+Accept: application/json
+
+### Дубликат слота в Orion
+# Начать отдельный запуск с --app.demo-user=vera. 409 SLOT_ALREADY_EXISTS.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+Accept: application/json
+
+{"startsAt":"2030-01-14T12:00:00+03:00","endsAt":"2030-01-14T13:00:00+03:00"}
+
+### Подготовка уже начавшегося слота
+# В том же процессе Vera. 201, available=false. Подставить id ответа в pastSlotId.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+Accept: application/json
+
+{"startsAt":"2020-01-14T09:00:00Z","endsAt":"2020-01-14T10:00:00Z"}
+
+### Попытка забронировать уже начавшийся слот
+# 409 SLOT_ALREADY_STARTED, fieldErrors=[].
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"{{pastSlotId}}"}
+
+# Модуль 2. Ошибки JSON, параметров и валидации.
+# Для блока Anna запустить свежий JAR с --app.demo-user=anna.
+# Повторить из модуля 1 запросы «Пустой параметр size», PUT коллекции и POST с text/plain.
+# Контроль истории выполнить до и после отклонённых POST в одном процессе.
+
+### История без параметра size
+# 200. size=20, totalElements=3.
+GET {{baseUrl}}/api/v1/bookings
+Accept: application/json
+
+### Оборванный JSON брони
+# 400. MALFORMED_JSON, fieldErrors=[].
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+
+{"slotId":
+
+### Неверный UUID в slotId
+# 400. VALIDATION_ERROR, поля slotId.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"abc"}
+
+### Неизвестное поле userId
+# 400. VALIDATION_ERROR, поля userId.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{"slotId":"{{bookableSlotId}}","userId":"{{unknownId}}"}
+
+### Пустой объект брони
+# 400. VALIDATION_ERROR, поля slotId.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+{}
+
+### Явный null в slotId
+# 400. VALIDATION_ERROR, поля slotId.
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+
+{"slotId":null}
+
+### Пустое обязательное тело
+# 400. VALIDATION_ERROR, fieldErrors=[], «Тело запроса обязательно».
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+Content-Length: 0
+
+### JSON null вместо объекта брони
+# 400. VALIDATION_ERROR, fieldErrors=[], «Тело запроса обязательно».
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+null
+
+### Массив вместо объекта брони
+# 400. VALIDATION_ERROR, fieldErrors=[].
+POST {{baseUrl}}/api/v1/bookings
+Content-Type: application/json
+Accept: application/json
+
+[]
+
+### Неверный UUID в пути брони
+# 400. VALIDATION_ERROR, поля id.
+GET {{baseUrl}}/api/v1/bookings/abc
+Accept: application/json
+
+### Список слотов без from
+# 400. VALIDATION_ERROR, поля from.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?to=2030-01-14T11:00:00Z
+
+### Параметр to без смещения
+# 400. VALIDATION_ERROR, поля to.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T09:00:00Z&to=2030-01-14T11:00:00
+
+### Обратный порядок границ периода
+# 400. VALIDATION_ERROR, поля to.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T12:00:00Z&to=2030-01-14T11:00:00Z&availableOnly=true&page=0&size=20
+
+# Для блока Vera запустить новый процесс с --app.demo-user=vera.
+
+### Слот без endsAt
+# 400. VALIDATION_ERROR, поля endsAt.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{"startsAt":"2030-01-14T15:00:00Z"}
+
+### Слот длительностью 59 минут
+# 400. VALIDATION_ERROR, поля endsAt.
+POST {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots
+Content-Type: application/json
+
+{"startsAt":"2030-01-14T15:00:00Z","endsAt":"2030-01-14T15:59:00Z"}
+
+### Строка вместо числа в capacity
+# 400. VALIDATION_ERROR, поля capacity.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":"4","hasProjector":false}
+
+### Создание комнаты с hasProjector: false
+# 201. Создана Atlas, capacity=4, hasProjector=false.
+POST {{baseUrl}}/api/v1/rooms
+Content-Type: application/json
+
+{"name":"Atlas","capacity":4,"hasProjector":false}
+
+# Модуль 4. Параллельная бронь и сквозная проверка от 25.11.2026.
+# Команды двух фоновых POST и фактические ответы: ../docs/error-handling-verification.md.
+# Свежий запуск --app.demo-user=anna. После проверки доступности запустить два POST из отчёта.
+# В createdBookingId подставить UUID из Location успешного POST.
+# В том же процессе использовать блоки «Чтение первой брони после конфликта» и
+# «Отмена успешно созданной брони». Выполнить DELETE дважды и вновь прочитать бронь.
+# Затем повторить создание на тот же слот и проверить историю до и после запроса с неверным UUID.
+@annaSeedBookingId = 00000000-0000-0000-0000-000000000001
+
+### Доступность Orion до параллельного POST
+# Получено 200, у единственного слота в этом интервале available=true.
+GET {{baseUrl}}/api/v1/rooms/{{orionRoomId}}/slots?from=2030-01-14T10:00:00Z&to=2030-01-14T11:00:00Z
+Accept: application/json
+
+### Активная бронь после двух параллельных POST
+# Среди items с slotId={{bookableSlotId}} ровно одна запись с id из Location ответа 201.
+GET {{baseUrl}}/api/v1/bookings?status=ACTIVE&size=100
+Accept: application/json
+
+### История после повторного бронирования и после неверного slotId
+# Оба просмотра дали totalElements=5. Для выбранного слота есть новая ACTIVE и две CANCELLED,
+# включая одну запись из исходных данных.
+GET {{baseUrl}}/api/v1/bookings?size=100
+Accept: application/json
+
+### Boris читает исходную бронь Anna
+# Отдельный запуск --app.demo-user=boris. Получено 403 FORBIDDEN, fieldErrors=[].
+GET {{baseUrl}}/api/v1/bookings/{{annaSeedBookingId}}
+Accept: application/json
+
+### Boris читает неизвестную бронь
+# Тот же процесс Boris. Получено 404 BOOKING_NOT_FOUND, fieldErrors=[].
+GET {{baseUrl}}/api/v1/bookings/{{unknownId}}
+Accept: application/json

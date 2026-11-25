@@ -3,13 +3,12 @@ package com.learning.booking.controller;
 import com.learning.booking.dto.CreateRoomRequest;
 import com.learning.booking.dto.PageResponse;
 import com.learning.booking.dto.RoomResponse;
-import com.learning.booking.exception.ForbiddenOperationException;
+import com.learning.booking.exception.InvalidFieldException;
 import com.learning.booking.service.RoomService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 
 @RestController
@@ -36,13 +35,11 @@ public class RoomController {
             try {
                 minCapacity = Integer.parseInt(minCapacityString);
             } catch (NumberFormatException e) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST, "minCapacity must be an integer", e);
+                throw new InvalidFieldException("minCapacity", "Ожидается целое число", e);
             }
 
             if (minCapacity <= 0) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST, "minCapacity must be positive");
+                throw new InvalidFieldException("minCapacity", "Вместимость должна быть больше нуля");
             }
         }
 
@@ -54,15 +51,8 @@ public class RoomController {
     public ResponseEntity<RoomResponse> createRoom(
             @Valid @RequestBody CreateRoomRequest roomRequest
     ) {
-        try {
-            return ResponseEntity
-                    .status(HttpStatus.CREATED)
-                    .body(roomService.createRoom(roomRequest));
-        } catch (ForbiddenOperationException e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(roomService.createRoom(roomRequest));
     }
-
-
-
 }
