@@ -19,6 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 import tools.jackson.core.JacksonException;
 import tools.jackson.core.exc.InputCoercionException;
 import tools.jackson.core.exc.StreamReadException;
+import tools.jackson.databind.exc.MismatchedInputException;
 import tools.jackson.databind.exc.UnrecognizedPropertyException;
 
 import java.util.List;
@@ -138,14 +139,19 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
             case null -> new ErrorResponse("VALIDATION_ERROR", "Тело запроса обязательно", List.of());
             case UnrecognizedPropertyException unknown -> validationError(unknown.getPropertyName(), "Неизвестное поле");
             case InputCoercionException coercion -> invalidJsonValue(coercion);
-            case StreamReadException syntax -> new ErrorResponse(
-                    "MALFORMED_JSON", "Не удалось разобрать тело запроса", List.of()
-            );
+            case StreamReadException syntax -> malformedJson();
+            // Jackson reports trailing root tokens as MismatchedInputException without a dedicated subtype.
+            case MismatchedInputException mismatch when mismatch.getOriginalMessage() != null
+                    && mismatch.getOriginalMessage().startsWith("Trailing token (`JsonToken.") -> malformedJson();
             case JacksonException jackson -> invalidJsonValue(jackson);
             default -> validationError(List.of());
         };
 
         return handleExceptionInternal(ex, body, headers, status, request);
+    }
+
+    private ErrorResponse malformedJson() {
+        return new ErrorResponse("MALFORMED_JSON", "Не удалось разобрать тело запроса", List.of());
     }
 
     private ErrorResponse invalidJsonValue(JacksonException ex) {

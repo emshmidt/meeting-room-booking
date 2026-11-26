@@ -1,4 +1,6 @@
-# Проверка исходного состояния
+# Проверка SQL-сценариев бронирования
+
+## Проверка исходного состояния
 SELECT current_database();
 booking_training_day5_check
 
@@ -48,10 +50,10 @@ HAVING COUNT(id) > 1;
 bookings_one_active_per_slot_idx | CREATE UNIQUE INDEX bookings_one_active_per_slot_idx 
 ON public.bookings USING btree (slot_id) WHERE (status = 'ACTIVE'::text)
 
-# Проверка сценариев
+## Проверка сценариев
 
 Сценарии R3/R4/R5 повторно выполнены в новой БД `booking_training_day5_check`
-по [SQL-сценарию дня 4](../sql/13-day-4-booking-race.sql).
+по [SQL-сценарию конкурентного бронирования](../sql/13-day-4-booking-race.sql).
 Таблица — `day4_lab.bookings_race`, индекс — `bookings_race_one_active_per_slot_idx`.
 Слот — `00000000-0000-0000-0000-000000000008`.
 
