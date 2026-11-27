@@ -1,11 +1,13 @@
 package com.learning.booking.repository;
 
 import com.learning.booking.domain.Room;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 import java.util.*;
 
 @Repository
+@Profile("memory")
 public class InMemoryRoomRepository implements RoomRepository{
     private final Map<UUID, Room> storage =
             new HashMap<>();

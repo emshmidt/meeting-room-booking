@@ -7,6 +7,7 @@ import com.learning.booking.repository.TimeSlotRepository;
 import com.learning.booking.repository.UserRepository;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -14,6 +15,7 @@ import java.util.UUID;
 
 
 @Component
+@Profile("memory")
 public class DemoDataInitializer implements ApplicationRunner {
     private final RoomRepository roomRepository;
     private final UserRepository userRepository;

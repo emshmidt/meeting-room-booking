@@ -2,11 +2,13 @@ package com.learning.booking.repository;
 
 
 import com.learning.booking.domain.TimeSlot;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 import java.util.*;
 
 @Repository
+@Profile("memory")
 public class InMemoryTimeSlotRepository implements TimeSlotRepository{
     private final Map<UUID, TimeSlot> storage =
             new HashMap<>();

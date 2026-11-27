@@ -4,11 +4,13 @@ package com.learning.booking.repository;
 import com.learning.booking.domain.Booking;
 import com.learning.booking.domain.BookingStatus;
 import com.learning.booking.exception.BookingNotFoundException;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Repository;
 
 import java.util.*;
 
 @Repository
+@Profile("memory")
 public class InMemoryBookingRepository implements BookingRepository{
     private final Map<UUID, Booking> storage =
             new HashMap<>();

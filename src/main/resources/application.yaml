@@ -7,6 +7,8 @@ spring:
       accept-float-as-int: false
     mapper:
       allow-coercion-of-scalars: false
+  profiles:
+    default: memory
 
 server:
   port: 8080
